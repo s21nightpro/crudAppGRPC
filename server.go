@@ -2,44 +2,44 @@ package main
 
 import (
 	"context"
+	"fmt"
 	"log"
 	"net"
+	"sync"
 
-	"github.com/s21nightpro/crudApp"
+	user "github.com/s21nightpro/crudApp/crudApp/go/user"
 	"google.golang.org/grpc"
 )
 
 type server struct {
 	user.UnimplementedUserServiceServer
+	users map[string]*user.User
+	mu    sync.Mutex
 }
 
 func (s *server) CreateUser(ctx context.Context, req *user.CreateUserRequest) (*user.User, error) {
-	// Реализация создания пользователя
-	return &user.User{Id: "1", Name: req.Name, Email: req.Email}, nil
-}
+	s.mu.Lock()
+	defer s.mu.Unlock()
 
-func (s *server) GetUser(ctx context.Context, req *user.GetUserRequest) (*user.User, error) {
-	// Реализация получения пользователя
-	return &user.User{Id: "1", Name: "John Doe", Email: "john.doe@example.com"}, nil
-}
+	// Проверяем, существует ли пользователь с таким именем или адресом электронной почты
+	if _, exists := s.users[req.Email]; exists {
+		return nil, fmt.Errorf("user with email %s already exists", req.Email)
+	}
 
-func (s *server) UpdateUser(ctx context.Context, req *user.UpdateUserRequest) (*user.User, error) {
-	// Реализация обновления пользователя
-	return &user.User{Id: req.Id, Name: req.Name, Email: req.Email}, nil
-}
+	// Если пользователь не существует, создаем нового пользователя
+	newUser := &user.User{Id: fmt.Sprintf("%d", len(s.users)+1), Name: req.Name, Email: req.Email}
+	s.users[req.Email] = newUser
 
-func (s *server) DeleteUser(ctx context.Context, req *user.DeleteUserRequest) (*user.User, error) {
-	// Реализация удаления пользователя
-	return &user.User{Id: req.Id}, nil
+	return newUser, nil
 }
 
 func main() {
-	lis, err := net.Listen("tcp", ":50051")
+	lis, err := net.Listen("tcp", ":50057")
 	if err != nil {
 		log.Fatalf("failed to listen: %v", err)
 	}
 	s := grpc.NewServer()
-	user.RegisterUserServiceServer(s, &server{})
+	user.RegisterUserServiceServer(s, &server{users: make(map[string]*user.User)})
 	if err := s.Serve(lis); err != nil {
 		log.Fatalf("failed to serve: %v", err)
 	}
