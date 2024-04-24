@@ -29,7 +29,7 @@ func main() {
 	// Отправка запроса на создание пользователя
 	r, err := c.CreateUser(ctx, &user.CreateUserRequest{
 		Name:  "John Doe",
-		Email: "john.de@example.com",
+		Email: "john.doe@example.com",
 	})
 	if err != nil {
 		if status.Code(err) == codes.Unknown {
