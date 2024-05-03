@@ -2,20 +2,26 @@ package main
 
 import (
 	"context"
+	"database/sql"
+	"errors"
 	"fmt"
+	"github.com/google/uuid"
+	_ "github.com/lib/pq"
+	user "github.com/s21nightpro/crudAppGRPC/crudApp/go/user"
+	"go.uber.org/zap"
+	_ "go.uber.org/zap"
+	"google.golang.org/grpc"
 	"log"
 	"net"
 	"sync"
 	"time"
-
-	user "github.com/s21nightpro/crudApp/crudApp/go/user"
-	"google.golang.org/grpc"
 )
 
 type server struct {
 	user.UnimplementedUserServiceServer
 	users map[string]*user.User
 	cache *Cache
+	db    *sql.DB
 	mu    sync.Mutex
 }
 type Cache struct {
@@ -28,62 +34,88 @@ type Item struct {
 	Expiration int64
 }
 
-func (s *server) CreateUser(ctx context.Context, req *user.CreateUserRequest) (*user.User, error) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
+func initDB() (*sql.DB, error) {
+	connStr := "user=biba dbname=postgres password=boba host=localhost sslmode=disable"
+	db, err := sql.Open("postgres", connStr)
+	if err != nil {
+		return nil, err
+	}
+	if err = db.Ping(); err != nil {
+		return nil, err
+	}
+	return db, nil
+}
 
-	// Проверяем, существует ли пользователь с таким именем или адресом электронной почты
-	if _, exists := s.users[req.Email]; exists {
-		return nil, fmt.Errorf("user with email %s already exists", req.Email)
+func (s *server) userExists(id string) (bool, error) {
+	var exists bool
+	err := s.db.QueryRow("SELECT EXISTS(SELECT 1 FROM users WHERE id = $1)", id).Scan(&exists)
+	if err != nil {
+		return false, err
+	}
+	return exists, nil
+}
+
+func (s *server) CreateUser(ctx context.Context, req *user.CreateUserRequest) (*user.User, error) {
+	// Генерация UUID для нового пользователя
+	userID := uuid.New().String()
+
+	// Вставляем нового пользователя в базу данных с сгенерированным UUID
+	_, err := s.db.Exec("INSERT INTO users (id, name, email) VALUES ($1, $2, $3)", userID, req.Name, req.Email)
+	if err != nil {
+		return nil, fmt.Errorf("error inserting user into database: %v", err)
 	}
 
-	// Если пользователь не существует, создаем нового пользователя
-	newUser := &user.User{Id: fmt.Sprintf("%d", len(s.users)+1), Name: req.Name, Email: req.Email}
-	s.users[req.Email] = newUser
-	s.cache.Set(req.Email, newUser, time.Minute*5)
-	return newUser, nil
+	// Возвращаем созданного пользователя с сгенерированным UUID
+	createdUser := &user.User{Id: userID, Name: req.Name, Email: req.Email}
+	return createdUser, nil
 }
 
 func (s *server) UpdateUser(ctx context.Context, req *user.UpdateUserRequest) (*user.User, error) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-
-	// Проверяем, существует ли пользователь
-	existingUser, exists := s.users[req.Email]
+	exists, err := s.userExists(req.Id)
+	if err != nil {
+		return nil, err
+	}
 	if !exists {
-		return nil, fmt.Errorf("user with email %s does not exist", req.Email)
+		return nil, fmt.Errorf("user with ID %s does not exist", req.Id)
 	}
 
-	// Обновляем информацию о пользователе
-	existingUser.Name = req.Name
-	existingUser.Email = req.Email
-	s.cache.Set(req.Email, existingUser, time.Minute*5)
+	// Продолжайте с обновлением пользователя, если ID существует
+	_, err = s.db.Exec("UPDATE users SET name = $1, email = $2 WHERE id = $3", req.Name, req.Email, req.Id)
+	if err != nil {
+		return nil, err
+	}
 
-	return existingUser, nil
+	updatedUser := &user.User{Id: req.Id, Name: req.Name, Email: req.Email}
+	return updatedUser, nil
 }
 
 func (s *server) DeleteUser(ctx context.Context, req *user.DeleteUserRequest) (*user.User, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	userToDelete, exists := s.users[req.Id]
-	if !exists {
+
+	result, err := s.db.Exec("DELETE FROM users WHERE id = $1", req.Id)
+	if err != nil {
+		return nil, err
+	}
+
+	rowsAffected, err := result.RowsAffected()
+	if err != nil {
+		return nil, err
+	}
+	if rowsAffected == 0 {
 		return nil, fmt.Errorf("user with ID %s does not exist", req.Id)
 	}
-	delete(s.users, req.Id)
-	s.cache.Set(req.Id, userToDelete, time.Minute*5)
 
-	return &user.User{Id: req.Id, Name: "Deleted User", Email: "deleted@example.com"}, nil
+	s.cache.Delete(req.Id)
+
+	return nil, nil
 }
 
 func (s *server) GetUser(ctx context.Context, req *user.GetUserRequest) (*user.User, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-
-	// Проверяем кэш на наличие данных
 	item, found := s.cache.Get(req.Id)
 	if found {
-		// Если данные найдены в кэше, возвращаем их
-		// Добавляем утверждение типа для item
 		userToGet, ok := item.(*user.User)
 		if !ok {
 			return nil, fmt.Errorf("failed to assert type of cached item")
@@ -91,18 +123,19 @@ func (s *server) GetUser(ctx context.Context, req *user.GetUserRequest) (*user.U
 		return userToGet, nil
 	}
 
-	// Если данных нет в кэше, ищем в базе данных
-	userToGet, exists := s.users[req.Id]
-	if !exists {
-		return nil, fmt.Errorf("user with ID %s does not exist", req.Id)
+	var userToGet user.User
+	err := s.db.QueryRowContext(ctx, "SELECT id, name, email FROM users WHERE id = $1", req.Id).Scan(&userToGet.Id, &userToGet.Name, &userToGet.Email)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, fmt.Errorf("user with ID %s does not exist", req.Id)
+		}
+		return nil, fmt.Errorf("error querying user from database: %v", err)
 	}
 
-	// Кэшируем данные
-	s.cache.Set(req.Id, userToGet, time.Minute*5) // Кэшируем на 5 минут
+	s.cache.Set(req.Id, &userToGet, time.Minute*5)
 
-	return userToGet, nil
+	return &userToGet, nil
 }
-
 func NewCache() *Cache {
 	return &Cache{
 		items: make(map[string]Item),
@@ -137,15 +170,25 @@ func (c *Cache) Delete(key string) {
 }
 
 func main() {
-	cache := NewCache() // Инициализация кэша
+	logger, err := zap.NewProduction()
+	if err != nil {
+		log.Fatalf("failed to create zap logger: %v", err)
+	}
+	defer logger.Sync()
+	cache := NewCache()
+	db, err := initDB()
+	if err != nil {
+		logger.Fatal("failed to initialize database: %v", zap.Error(err))
+	}
+	defer db.Close()
 
 	lis, err := net.Listen("tcp", ":50057")
 	if err != nil {
-		log.Fatalf("failed to listen: %v", err)
+		logger.Fatal("failed to listen: %v", zap.Error(err))
 	}
 	s := grpc.NewServer()
-	user.RegisterUserServiceServer(s, &server{users: make(map[string]*user.User), cache: cache})
+	user.RegisterUserServiceServer(s, &server{users: make(map[string]*user.User), cache: cache, db: db})
 	if err := s.Serve(lis); err != nil {
-		log.Fatalf("failed to serve: %v", err)
+		logger.Fatal("failed to serve: %v", zap.Error(err))
 	}
 }
