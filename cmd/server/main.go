@@ -6,7 +6,9 @@ import (
 	"errors"
 	"fmt"
 	"github.com/google/uuid"
+
 	_ "github.com/lib/pq"
+	_ "github.com/s21nightpro/crudAppGRPC/internal/cache"
 	"github.com/s21nightpro/crudAppGRPC/internal/grpc/user"
 	"go.uber.org/zap"
 	_ "go.uber.org/zap"
@@ -23,15 +25,6 @@ type server struct {
 	cache *Cache
 	db    *sql.DB
 	mu    sync.Mutex
-}
-type Cache struct {
-	items map[string]Item
-	mu    sync.Mutex
-}
-
-type Item struct {
-	Value      interface{}
-	Expiration int64
 }
 
 func initDB() (*sql.DB, error) {
@@ -135,38 +128,6 @@ func (s *server) GetUser(ctx context.Context, req *_go.GetUserRequest) (*_go.Use
 	s.cache.Set(req.Id, &userToGet, time.Minute*5)
 
 	return &userToGet, nil
-}
-func NewCache() *Cache {
-	return &Cache{
-		items: make(map[string]Item),
-	}
-}
-
-func (c *Cache) Set(key string, value interface{}, duration time.Duration) {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-	expiration := time.Now().Add(duration).UnixNano()
-	c.items[key] = Item{Value: value, Expiration: expiration}
-}
-
-func (c *Cache) Get(key string) (interface{}, bool) {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-	item, found := c.items[key]
-	if !found {
-		return nil, false
-	}
-	if time.Now().UnixNano() > item.Expiration {
-		delete(c.items, key)
-		return nil, false
-	}
-	return item.Value, true
-}
-
-func (c *Cache) Delete(key string) {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-	delete(c.items, key)
 }
 
 var logger *zap.Logger
