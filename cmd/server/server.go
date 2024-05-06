@@ -7,7 +7,7 @@ import (
 	"fmt"
 	"github.com/google/uuid"
 	_ "github.com/lib/pq"
-	user "github.com/s21nightpro/crudAppGRPC/crudApp/go/user"
+	"github.com/s21nightpro/crudAppGRPC/internal/grpc/user"
 	"go.uber.org/zap"
 	_ "go.uber.org/zap"
 	"google.golang.org/grpc"
@@ -18,8 +18,8 @@ import (
 )
 
 type server struct {
-	user.UnimplementedUserServiceServer
-	users map[string]*user.User
+	_go.UnimplementedUserServiceServer
+	users map[string]*_go.User
 	cache *Cache
 	db    *sql.DB
 	mu    sync.Mutex
@@ -55,7 +55,7 @@ func (s *server) userExists(id string) (bool, error) {
 	return exists, nil
 }
 
-func (s *server) CreateUser(ctx context.Context, req *user.CreateUserRequest) (*user.User, error) {
+func (s *server) CreateUser(ctx context.Context, req *_go.CreateUserRequest) (*_go.User, error) {
 	// Генерация UUID для нового пользователя
 	userID := uuid.New().String()
 
@@ -66,11 +66,11 @@ func (s *server) CreateUser(ctx context.Context, req *user.CreateUserRequest) (*
 	}
 
 	// Возвращаем созданного пользователя с сгенерированным UUID
-	createdUser := &user.User{Id: userID, Name: req.Name, Email: req.Email}
+	createdUser := &_go.User{Id: userID, Name: req.Name, Email: req.Email}
 	return createdUser, nil
 }
 
-func (s *server) UpdateUser(ctx context.Context, req *user.UpdateUserRequest) (*user.User, error) {
+func (s *server) UpdateUser(ctx context.Context, req *_go.UpdateUserRequest) (*_go.User, error) {
 	exists, err := s.userExists(req.Id)
 	if err != nil {
 		return nil, err
@@ -85,11 +85,11 @@ func (s *server) UpdateUser(ctx context.Context, req *user.UpdateUserRequest) (*
 		return nil, err
 	}
 
-	updatedUser := &user.User{Id: req.Id, Name: req.Name, Email: req.Email}
+	updatedUser := &_go.User{Id: req.Id, Name: req.Name, Email: req.Email}
 	return updatedUser, nil
 }
 
-func (s *server) DeleteUser(ctx context.Context, req *user.DeleteUserRequest) (*user.User, error) {
+func (s *server) DeleteUser(ctx context.Context, req *_go.DeleteUserRequest) (*_go.User, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
@@ -111,19 +111,19 @@ func (s *server) DeleteUser(ctx context.Context, req *user.DeleteUserRequest) (*
 	return nil, nil
 }
 
-func (s *server) GetUser(ctx context.Context, req *user.GetUserRequest) (*user.User, error) {
+func (s *server) GetUser(ctx context.Context, req *_go.GetUserRequest) (*_go.User, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	item, found := s.cache.Get(req.Id)
 	if found {
-		userToGet, ok := item.(*user.User)
+		userToGet, ok := item.(*_go.User)
 		if !ok {
 			return nil, fmt.Errorf("failed to assert type of cached item")
 		}
 		return userToGet, nil
 	}
 
-	var userToGet user.User
+	var userToGet _go.User
 	err := s.db.QueryRowContext(ctx, "SELECT id, name, email FROM users WHERE id = $1", req.Id).Scan(&userToGet.Id, &userToGet.Name, &userToGet.Email)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
@@ -169,6 +169,17 @@ func (c *Cache) Delete(key string) {
 	delete(c.items, key)
 }
 
+var logger *zap.Logger
+
+func init() {
+	var err error
+	logger, err = zap.NewProduction()
+	if err != nil {
+		panic(fmt.Sprintf("failed to initialize zap logger: %v", err))
+	}
+	defer logger.Sync()
+}
+
 func main() {
 	logger, err := zap.NewProduction()
 	if err != nil {
@@ -181,13 +192,12 @@ func main() {
 		logger.Fatal("failed to initialize database: %v", zap.Error(err))
 	}
 	defer db.Close()
-
 	lis, err := net.Listen("tcp", ":50057")
 	if err != nil {
 		logger.Fatal("failed to listen: %v", zap.Error(err))
 	}
 	s := grpc.NewServer()
-	user.RegisterUserServiceServer(s, &server{users: make(map[string]*user.User), cache: cache, db: db})
+	_go.RegisterUserServiceServer(s, &server{users: make(map[string]*_go.User), cache: cache, db: db})
 	if err := s.Serve(lis); err != nil {
 		logger.Fatal("failed to serve: %v", zap.Error(err))
 	}

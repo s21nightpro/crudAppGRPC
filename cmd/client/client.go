@@ -3,7 +3,7 @@ package main
 import (
 	"context"
 	"fmt"
-	user "github.com/s21nightpro/crudAppGRPC/crudApp/go/user"
+	"github.com/s21nightpro/crudAppGRPC/internal/grpc/user"
 	"go.uber.org/zap"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
@@ -21,28 +21,8 @@ func init() {
 	}
 	defer logger.Sync()
 }
-
-func clientRun() {
-	conn, err := grpc.Dial("localhost:50057", grpc.WithInsecure(), grpc.WithBlock())
-	defer conn.Close()
-	if err != nil {
-		logger.Fatal("did not connect", zap.Error(err))
-	}
-
-	c := user.NewUserServiceClient(conn)
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-	//createUser(ctx, c, "John Cock", "john.cock@example.com")
-	//getUser(ctx, c, "67e44047-6eef-45fd-845a-ec53abc89b55")
-	updateUser(ctx, c, "5339d08c-4825-4b9e-ae71-ac2f194b8a8b", "john.dick@example.com", "John Dik")
-	//getUser(ctx, c, "1dbf99bf-f560-45b9-895b-e5c945ad6b46")
-	//deleteUser(ctx, c, "67e44047-6eef-45fd-845a-ec53abc89b55")
-	//getUser(ctx, c, "67e44047-6eef-45fd-845a-ec53abc89b55")
-	//deleteUser(ctx, c, "1dbf99bf-f560-45b9-895b-e5c945ad6b46")
-}
-
-func createUser(ctx context.Context, c user.UserServiceClient, name, email string) {
-	r, err := c.CreateUser(ctx, &user.CreateUserRequest{
+func createUser(ctx context.Context, c _go.UserServiceClient, name, email string) {
+	r, err := c.CreateUser(ctx, &_go.CreateUserRequest{
 		Name:  name,
 		Email: email,
 	})
@@ -57,8 +37,8 @@ func createUser(ctx context.Context, c user.UserServiceClient, name, email strin
 	}
 }
 
-func getUser(ctx context.Context, c user.UserServiceClient, id string) {
-	r, err := c.GetUser(ctx, &user.GetUserRequest{Id: id})
+func getUser(ctx context.Context, c _go.UserServiceClient, id string) {
+	r, err := c.GetUser(ctx, &_go.GetUserRequest{Id: id})
 	if err != nil {
 		if status.Code(err) == codes.Unknown {
 			logger.Error("Could not get user", zap.Error(err))
@@ -72,8 +52,8 @@ func getUser(ctx context.Context, c user.UserServiceClient, id string) {
 	}
 }
 
-func updateUser(ctx context.Context, c user.UserServiceClient, id, newEmail, newName string) (*user.User, error) {
-	req := &user.UpdateUserRequest{
+func updateUser(ctx context.Context, c _go.UserServiceClient, id, newEmail, newName string) (*_go.User, error) {
+	req := &_go.UpdateUserRequest{
 		Id:    id,
 		Name:  newName,
 		Email: newEmail,
@@ -91,9 +71,9 @@ func updateUser(ctx context.Context, c user.UserServiceClient, id, newEmail, new
 	return updatedUser, nil
 }
 
-func deleteUser(ctx context.Context, c user.UserServiceClient, id string) {
-	a := &user.User{Id: id}
-	r, err := c.DeleteUser(ctx, &user.DeleteUserRequest{Id: id})
+func deleteUser(ctx context.Context, c _go.UserServiceClient, id string) {
+	a := &_go.User{Id: id}
+	r, err := c.DeleteUser(ctx, &_go.DeleteUserRequest{Id: id})
 	if err != nil {
 		if status.Code(err) == codes.Unknown {
 			logger.Error("Could not delete user", zap.Error(err))
@@ -103,4 +83,23 @@ func deleteUser(ctx context.Context, c user.UserServiceClient, id string) {
 	} else {
 		logger.Info("User deletion response is nil")
 	}
+}
+
+func main() {
+	conn, err := grpc.Dial("localhost:50057", grpc.WithInsecure(), grpc.WithBlock())
+	defer conn.Close()
+	if err != nil {
+		logger.Fatal("did not connect", zap.Error(err))
+	}
+
+	c := _go.NewUserServiceClient(conn)
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	//createUser(ctx, c, "John Cock", "john.cock@example.com")
+	//getUser(ctx, c, "67e44047-6eef-45fd-845a-ec53abc89b55")
+	updateUser(ctx, c, "5339d08c-4825-4b9e-ae71-ac2f194b8a8b", "john.dick@example.com", "John Dick")
+	//getUser(ctx, c, "1dbf99bf-f560-45b9-895b-e5c945ad6b46")
+	//deleteUser(ctx, c, "67e44047-6eef-45fd-845a-ec53abc89b55")
+	//getUser(ctx, c, "67e44047-6eef-45fd-845a-ec53abc89b55")
+	//deleteUser(ctx, c, "1dbf99bf-f560-45b9-895b-e5c945ad6b46")
 }
