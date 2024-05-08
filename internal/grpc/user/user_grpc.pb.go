@@ -4,7 +4,7 @@
 // - protoc             v5.26.1
 // source: user.proto
 
-package _go
+package user
 
 import (
 	context "context"
@@ -20,7 +20,7 @@ const _ = grpc.SupportPackageIsVersion7
 
 // UserServiceClient is the client API for UserService service.
 //
-// For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
+// For semantics around ctx server and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
 type UserServiceClient interface {
 	CreateUser(ctx context.Context, in *CreateUserRequest, opts ...grpc.CallOption) (*User, error)
 	GetUser(ctx context.Context, in *GetUserRequest, opts ...grpc.CallOption) (*User, error)
@@ -185,7 +185,7 @@ func _UserService_DeleteUser_Handler(srv interface{}, ctx context.Context, dec f
 }
 
 // UserService_ServiceDesc is the grpc.ServiceDesc for UserService service.
-// It's only intended for direct use with grpc.RegisterService,
+// It's only intended for direct server with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
 var UserService_ServiceDesc = grpc.ServiceDesc{
 	ServiceName: "user.UserService",

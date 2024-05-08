@@ -3,7 +3,8 @@ package main
 import (
 	"context"
 	"fmt"
-	"github.com/s21nightpro/crudAppGRPC/internal/grpc/user"
+	_go "github.com/s21nightpro/crudAppGRPC/internal/grpc/user"
+	//"github.com/s21nightpro/crudAppGRPC/internal/logger"
 	"go.uber.org/zap"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
@@ -13,7 +14,7 @@ import (
 
 var logger *zap.Logger
 
-func init() {
+func Init() {
 	var err error
 	logger, err = zap.NewProduction()
 	if err != nil {
@@ -21,6 +22,11 @@ func init() {
 	}
 	defer logger.Sync()
 }
+
+func Get() *zap.Logger {
+	return logger
+}
+
 func createUser(ctx context.Context, c _go.UserServiceClient, name, email string) {
 	r, err := c.CreateUser(ctx, &_go.CreateUserRequest{
 		Name:  name,
@@ -67,7 +73,8 @@ func updateUser(ctx context.Context, c _go.UserServiceClient, id, newEmail, newN
 		logger.Error("Update user response is nil")
 		return nil, fmt.Errorf("update user response is nil")
 	}
-	logger.Info("User updated", zap.String("email", updatedUser.GetEmail()))
+	logger.Info("User updated", zap.String("email", updatedUser.GetEmail()), zap.String("id", updatedUser.GetId()))
+	//logger.Info("User updated", zap.String("email", updatedUser.GetEmail()))
 	return updatedUser, nil
 }
 
@@ -86,6 +93,7 @@ func deleteUser(ctx context.Context, c _go.UserServiceClient, id string) {
 }
 
 func main() {
+	Init()
 	conn, err := grpc.Dial("localhost:50057", grpc.WithInsecure(), grpc.WithBlock())
 	defer conn.Close()
 	if err != nil {
@@ -97,7 +105,7 @@ func main() {
 	defer cancel()
 	//createUser(ctx, c, "John Cock", "john.cock@example.com")
 	//getUser(ctx, c, "67e44047-6eef-45fd-845a-ec53abc89b55")
-	updateUser(ctx, c, "5339d08c-4825-4b9e-ae71-ac2f194b8a8b", "john.dick@example.com", "John Dick")
+	updateUser(ctx, c, "5339d08c-4825-4b9e-ae71-ac2f194b8a8b", "john.dicks@example.com", "John Dicks")
 	//getUser(ctx, c, "1dbf99bf-f560-45b9-895b-e5c945ad6b46")
 	//deleteUser(ctx, c, "67e44047-6eef-45fd-845a-ec53abc89b55")
 	//getUser(ctx, c, "67e44047-6eef-45fd-845a-ec53abc89b55")
