@@ -6,7 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"github.com/google/uuid"
-	"github.com/s21nightpro/crudAppGRPC/internal/grpc/user"
+	"github.com/s21nightpro/crudAppGRPC/cmd/api"
 	"time"
 )
 
@@ -25,7 +25,7 @@ type Cache interface {
 }
 
 type Server struct {
-	user.UnimplementedUserServiceServer
+	api.UnimplementedUserServiceServer
 	cache Cache
 	db    DB
 }
@@ -43,7 +43,7 @@ func (s *Server) userExists(id string) (bool, error) {
 	return exists, nil
 }
 
-func (s *Server) CreateUser(ctx context.Context, req *user.CreateUserRequest) (*user.User, error) {
+func (s *Server) CreateUser(ctx context.Context, req *api.CreateUserRequest) (*api.User, error) {
 	// Генерация UUID для нового пользователя
 	userID := uuid.New().String()
 
@@ -54,11 +54,11 @@ func (s *Server) CreateUser(ctx context.Context, req *user.CreateUserRequest) (*
 	}
 
 	// Возвращаем созданного пользователя с сгенерированным UUID
-	createdUser := &user.User{Id: userID, Name: req.Name, Email: req.Email}
+	createdUser := &api.User{Id: userID, Name: req.Name, Email: req.Email}
 	return createdUser, nil
 }
 
-func (s *Server) UpdateUser(ctx context.Context, req *user.UpdateUserRequest) (*user.User, error) {
+func (s *Server) UpdateUser(ctx context.Context, req *api.UpdateUserRequest) (*api.User, error) {
 	exists, err := s.userExists(req.Id)
 	if err != nil {
 		return nil, err
@@ -73,11 +73,11 @@ func (s *Server) UpdateUser(ctx context.Context, req *user.UpdateUserRequest) (*
 		return nil, err
 	}
 
-	updatedUser := &user.User{Id: req.Id, Name: req.Name, Email: req.Email}
+	updatedUser := &api.User{Id: req.Id, Name: req.Name, Email: req.Email}
 	return updatedUser, nil
 }
 
-func (s *Server) DeleteUser(ctx context.Context, req *user.DeleteUserRequest) (*user.User, error) {
+func (s *Server) DeleteUser(ctx context.Context, req *api.DeleteUserRequest) (*api.User, error) {
 	result, err := s.db.Exec("DELETE FROM users WHERE id = $1", req.Id)
 	if err != nil {
 		return nil, err
@@ -96,17 +96,17 @@ func (s *Server) DeleteUser(ctx context.Context, req *user.DeleteUserRequest) (*
 	return nil, nil
 }
 
-func (s *Server) GetUser(ctx context.Context, req *user.GetUserRequest) (*user.User, error) {
+func (s *Server) GetUser(ctx context.Context, req *api.GetUserRequest) (*api.User, error) {
 	item, found := s.cache.Get(req.Id)
 	if found {
-		userToGet, ok := item.(*user.User)
+		userToGet, ok := item.(*api.User)
 		if !ok {
 			return nil, fmt.Errorf("failed to assert type of cached item")
 		}
 		return userToGet, nil
 	}
 
-	var userToGet user.User
+	var userToGet api.User
 	err := s.db.QueryRowContext(ctx, "SELECT id, name, email FROM users WHERE id = $1", req.Id).Scan(&userToGet.Id, &userToGet.Name, &userToGet.Email)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {

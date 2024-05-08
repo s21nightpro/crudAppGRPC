@@ -4,7 +4,7 @@ import (
 	"context"
 	"errors"
 	"github.com/golang/mock/gomock"
-	user2 "github.com/s21nightpro/crudAppGRPC/internal/grpc/user"
+	"github.com/s21nightpro/crudAppGRPC/cmd/api"
 	"github.com/s21nightpro/crudAppGRPC/internal/server/mocks"
 	"github.com/stretchr/testify/assert"
 	"reflect"
@@ -34,7 +34,7 @@ import (
 
 func TestServer_CreateUser(t *testing.T) {
 	type fields struct {
-		UnimplementedUserServiceServer user2.UnimplementedUserServiceServer
+		UnimplementedUserServiceServer api.UnimplementedUserServiceServer
 		cache                          *mocks.MockCache
 		db                             *mocks.MockDB
 	}
@@ -52,24 +52,24 @@ func TestServer_CreateUser(t *testing.T) {
 
 	type args struct {
 		ctx context.Context
-		req *user2.CreateUserRequest
+		req *api.CreateUserRequest
 	}
 	tests := []struct {
 		name        string
 		fields      fields
 		args        args
-		want        *user2.User
+		want        *api.User
 		prepareFunc func(f *fields)
 		wantErr     bool
 	}{
 		{
 			name:   "easy case",
 			fields: f,
-			args: args{context.Background(), &user2.CreateUserRequest{
+			args: args{context.Background(), &api.CreateUserRequest{
 				Name:  "Aboba",
 				Email: "loh@gmail.com",
 			}},
-			want: &user2.User{
+			want: &api.User{
 				Name:  "Aboba",
 				Email: "loh@gmail.com",
 			},
@@ -82,8 +82,8 @@ func TestServer_CreateUser(t *testing.T) {
 			name: "error case",
 
 			fields: f,
-			args:   args{context.Background(), &user2.CreateUserRequest{}},
-			want:   &user2.User{},
+			args:   args{context.Background(), &api.CreateUserRequest{}},
+			want:   &api.User{},
 			prepareFunc: func(f *fields) {
 				f.db.EXPECT().Exec(gomock.Any(), gomock.Any()).Return(nil, errors.New("error"))
 			},
@@ -113,37 +113,64 @@ func TestServer_CreateUser(t *testing.T) {
 
 func TestServer_DeleteUser(t *testing.T) {
 	type fields struct {
-		UnimplementedUserServiceServer user2.UnimplementedUserServiceServer
-		cache                          Cache
-		db                             DB
+		UnimplementedUserServiceServer api.UnimplementedUserServiceServer
+		cache                          *mocks.MockCache
+		db                             *mocks.MockDB
 	}
+
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockCache := mocks.NewMockCache(ctrl)
+	mockDB := mocks.NewMockDB(ctrl)
+
+	f := fields{
+		cache: mockCache,
+		db:    mockDB,
+	}
+
 	type args struct {
 		ctx context.Context
-		req *user2.DeleteUserRequest
+		req *api.DeleteUserRequest
 	}
 	tests := []struct {
-		name    string
-		fields  fields
-		args    args
-		want    *user2.User
-		wantErr bool
+		name        string
+		fields      fields
+		args        args
+		wantErr     bool
+		prepareFunc func(f *fields)
 	}{
-		// TODO: Add test cases.
+		{
+			name:   "successful delete",
+			fields: f,
+			args: args{context.Background(), &api.DeleteUserRequest{
+				Id: "someUserId",
+			}},
+			wantErr: false,
+			prepareFunc: func(f *fields) {
+				f.db.EXPECT().Exec(gomock.Any(), gomock.Any()).Return(nil, nil)
+			},
+		},
+		{
+			name:    "delete error",
+			fields:  f,
+			args:    args{context.Background(), &api.DeleteUserRequest{}},
+			wantErr: true,
+			prepareFunc: func(f *fields) {
+				f.db.EXPECT().Exec(gomock.Any(), gomock.Any()).Return(nil, errors.New("error"))
+			},
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			s := &Server{
-				UnimplementedUserServiceServer: tt.fields.UnimplementedUserServiceServer,
-				cache:                          tt.fields.cache,
-				db:                             tt.fields.db,
-			}
-			got, err := s.DeleteUser(tt.args.ctx, tt.args.req)
+			tt.prepareFunc(&tt.fields)
+
+			s := NewServer(tt.fields.cache, tt.fields.db)
+			_, err := s.DeleteUser(tt.args.ctx, tt.args.req) // Добавлено второе значение для ошибки
+
 			if (err != nil) != tt.wantErr {
 				t.Errorf("DeleteUser() error = %v, wantErr %v", err, tt.wantErr)
 				return
-			}
-			if !reflect.DeepEqual(got, tt.want) {
-				t.Errorf("DeleteUser() got = %v, want %v", got, tt.want)
 			}
 		})
 	}
@@ -151,19 +178,19 @@ func TestServer_DeleteUser(t *testing.T) {
 
 func TestServer_GetUser(t *testing.T) {
 	type fields struct {
-		UnimplementedUserServiceServer user2.UnimplementedUserServiceServer
+		UnimplementedUserServiceServer api.UnimplementedUserServiceServer
 		cache                          Cache
 		db                             DB
 	}
 	type args struct {
 		ctx context.Context
-		req *user2.GetUserRequest
+		req *api.GetUserRequest
 	}
 	tests := []struct {
 		name    string
 		fields  fields
 		args    args
-		want    *user2.User
+		want    *api.User
 		wantErr bool
 	}{
 		// TODO: Add test cases.
@@ -189,19 +216,19 @@ func TestServer_GetUser(t *testing.T) {
 
 func TestServer_UpdateUser(t *testing.T) {
 	type fields struct {
-		UnimplementedUserServiceServer user2.UnimplementedUserServiceServer
+		UnimplementedUserServiceServer api.UnimplementedUserServiceServer
 		cache                          Cache
 		db                             DB
 	}
 	type args struct {
 		ctx context.Context
-		req *user2.UpdateUserRequest
+		req *api.UpdateUserRequest
 	}
 	tests := []struct {
 		name    string
 		fields  fields
 		args    args
-		want    *user2.User
+		want    *api.User
 		wantErr bool
 	}{
 		// TODO: Add test cases.
@@ -227,7 +254,7 @@ func TestServer_UpdateUser(t *testing.T) {
 
 func TestServer_userExists(t *testing.T) {
 	type fields struct {
-		UnimplementedUserServiceServer user2.UnimplementedUserServiceServer
+		UnimplementedUserServiceServer api.UnimplementedUserServiceServer
 		cache                          Cache
 		db                             DB
 	}

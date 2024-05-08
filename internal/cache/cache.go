@@ -2,14 +2,14 @@ package cache
 
 import (
 	"database/sql"
-	user2 "github.com/s21nightpro/crudAppGRPC/internal/grpc/user"
+	"github.com/s21nightpro/crudAppGRPC/cmd/api"
 	"sync"
 	"time"
 )
 
 type server struct {
-	user2.UnimplementedUserServiceServer
-	users map[string]*user2.User
+	api.UnimplementedUserServiceServer
+	users map[string]*api.User
 	cache *Cache
 	db    *sql.DB
 	mu    sync.Mutex

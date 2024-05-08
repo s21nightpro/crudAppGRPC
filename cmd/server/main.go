@@ -2,10 +2,8 @@ package main
 
 import (
 	_ "github.com/lib/pq"
-	_go "github.com/s21nightpro/crudAppGRPC/internal/grpc/user"
-
-	//_go "github.com/s21nightpro/crudAppGRPC/internal/grpc/user"
-	cache "github.com/s21nightpro/crudAppGRPC/internal/cache"
+	_go "github.com/s21nightpro/crudAppGRPC/cmd/api"
+	"github.com/s21nightpro/crudAppGRPC/internal/cache"
 	"github.com/s21nightpro/crudAppGRPC/internal/db"
 	"github.com/s21nightpro/crudAppGRPC/internal/server"
 	"go.uber.org/zap"

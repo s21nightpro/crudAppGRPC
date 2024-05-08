@@ -3,7 +3,7 @@ package main
 import (
 	"context"
 	"fmt"
-	_go "github.com/s21nightpro/crudAppGRPC/internal/grpc/user"
+	grpc2 "github.com/s21nightpro/crudAppGRPC/cmd/api"
 	//"github.com/s21nightpro/crudAppGRPC/internal/logger"
 	"go.uber.org/zap"
 	"google.golang.org/grpc"
@@ -27,8 +27,8 @@ func Get() *zap.Logger {
 	return logger
 }
 
-func createUser(ctx context.Context, c _go.UserServiceClient, name, email string) {
-	r, err := c.CreateUser(ctx, &_go.CreateUserRequest{
+func createUser(ctx context.Context, c grpc2.UserServiceClient, name, email string) {
+	r, err := c.CreateUser(ctx, &grpc2.CreateUserRequest{
 		Name:  name,
 		Email: email,
 	})
@@ -43,8 +43,8 @@ func createUser(ctx context.Context, c _go.UserServiceClient, name, email string
 	}
 }
 
-func getUser(ctx context.Context, c _go.UserServiceClient, id string) {
-	r, err := c.GetUser(ctx, &_go.GetUserRequest{Id: id})
+func getUser(ctx context.Context, c grpc2.UserServiceClient, id string) {
+	r, err := c.GetUser(ctx, &grpc2.GetUserRequest{Id: id})
 	if err != nil {
 		if status.Code(err) == codes.Unknown {
 			logger.Error("Could not get user", zap.Error(err))
@@ -58,8 +58,8 @@ func getUser(ctx context.Context, c _go.UserServiceClient, id string) {
 	}
 }
 
-func updateUser(ctx context.Context, c _go.UserServiceClient, id, newEmail, newName string) (*_go.User, error) {
-	req := &_go.UpdateUserRequest{
+func updateUser(ctx context.Context, c grpc2.UserServiceClient, id, newEmail, newName string) (*grpc2.User, error) {
+	req := &grpc2.UpdateUserRequest{
 		Id:    id,
 		Name:  newName,
 		Email: newEmail,
@@ -78,9 +78,9 @@ func updateUser(ctx context.Context, c _go.UserServiceClient, id, newEmail, newN
 	return updatedUser, nil
 }
 
-func deleteUser(ctx context.Context, c _go.UserServiceClient, id string) {
-	a := &_go.User{Id: id}
-	r, err := c.DeleteUser(ctx, &_go.DeleteUserRequest{Id: id})
+func deleteUser(ctx context.Context, c grpc2.UserServiceClient, id string) {
+	a := &grpc2.User{Id: id}
+	r, err := c.DeleteUser(ctx, &grpc2.DeleteUserRequest{Id: id})
 	if err != nil {
 		if status.Code(err) == codes.Unknown {
 			logger.Error("Could not delete user", zap.Error(err))
@@ -100,7 +100,7 @@ func main() {
 		logger.Fatal("did not connect", zap.Error(err))
 	}
 
-	c := _go.NewUserServiceClient(conn)
+	c := grpc2.NewUserServiceClient(conn)
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 	//createUser(ctx, c, "John Cock", "john.cock@example.com")
